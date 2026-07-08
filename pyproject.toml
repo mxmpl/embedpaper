@@ -1,0 +1,14 @@
+[project]
+name = "embedpaper"
+description = "Embed full PDF papers into a Typst document, preserving selectable text and links."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["pymupdf>=1.24", "rich>=13.0"]
+dynamic = ["version"]
+
+[project.scripts]
+embedpaper = "embedpaper.cli:main"
+
+[build-system]
+requires = ["flit_core>=3.12.0"]
+build-backend = "flit_core.buildapi"
