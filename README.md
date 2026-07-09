@@ -52,7 +52,7 @@ Requires [uv](https://github.com/astral-sh/uv) and the
    The audit re-derives where every link *should* point from the source PDFs
    and checks the compiled document against it — link count parity, correct
    destinations, and "Figure N" / "Table N" cross-references — exiting
-   non-zero on any mismatch. Useful as a CI regression guard.
+   non-zero on any mismatch.
 
 ## How it works
 
