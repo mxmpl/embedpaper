@@ -152,6 +152,5 @@ def transfer_links(pdf_path: Path, placements: list[Placement]) -> int:
     finally:
         for src in source_docs.values():
             src.close()
-
     logger.info("Added %d links to %s", added, pdf_path)
     return added
