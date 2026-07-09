@@ -63,3 +63,10 @@ Requires [uv](https://github.com/astral-sh/uv) and the
   PyMuPDF to copy each source page's links onto the matching output page,
   scaling coordinates and remapping internal destinations to their new
   page.
+
+
+## License
+
+This package in distributed under the MIT license.
+
+It is inspired by the [typst_embed_pdf](https://github.com/jheuel/typst_embed_pdf) project.
