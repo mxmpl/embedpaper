@@ -1,78 +1,58 @@
-/// Strip a leading "./" so callers may write either "papers/x.pdf" or
-/// "./papers/x.pdf".
-#let _norm(path) = if path.starts-with("./") { path.slice(2) } else { path }
-
-#let embedpaper(fn, pages, header: none, footer: none, margin: 1in, width: 100%) = {
-  /// Embeds every page of a PDF paper into the thesis, one paper page per
-  /// thesis page. Each page spans the full text width, breaking out of the
-  /// body's column layout, while keeping a customizable header and footer.
+#let embedpaper(fn, pages, width: 100%) = {
+  /// Embeds every page of a PDF as native `image()` content, one source page
+  /// per output page. Inherits the surrounding `page` context (call it inside a
+  /// single-column page, e.g. via `embedpaper-page`). Also emits `<__paperlink>`
+  /// metadata per page so the `embedpaper` CLI can restore the PDF's links,
+  /// which `image()` drops.
   ///
-  /// Pages are embedded with Typst's native `image()`, which keeps the paper's
-  /// text selectable. `image()` does *not* carry over link annotations, so this
-  /// function also records, for every embedded page, where it landed in the
-  /// output (page index, position and size). The `embedpaper` CLI (`embedpaper`)
-  /// reads that metadata after compilation and re-creates the paper's
-  /// links — including internal citation links that jump to the bibliography —
-  /// on top of the embedded pages.
-  ///
-  /// - `fn` (str): Path to the PDF, relative to the project root, e.g.
-  ///   "papers/2025-spidr.pdf". A leading "./" is accepted.
-  /// - `pages` (int): Number of pages in the PDF. Typst cannot query this, so
-  ///   the author provides it.
-  /// - `header` (content): Header shown on the embedded pages.
-  /// - `footer` (content): Footer shown on the embedded pages.
-  /// - `margin`: Page margin for the embedded pages (default: 1in).
-  /// - `width` (relative): Width of each embedded page (default: 100%, i.e.
-  ///   the full text width between the margins).
-  ///
-  /// **Example**:
-  /// ```typst
-  /// #embedpaper(
-  ///   "papers/2025-spidr.pdf",
-  ///   30,
-  ///   header: align(right + horizon)[SpidR],
-  ///   footer: context align(center)[#counter(page).display()],
-  /// )
-  /// ```
-
+  /// - `fn` (str): Path to the PDF, relative to the project root.
+  /// - `pages` (int): Page count of the PDF (Typst cannot query it).
+  /// - `width` (relative): Paper width vs. the **full page** width (default:
+  ///   100%); scaled to fit this width and the page height, preserving aspect
+  ///   ratio, then centered. Scaling against the whole page (rather than the
+  ///   body area inside the margins) lets the paper bleed past the body margins,
+  ///   so its own text lines up with the body text instead of being pushed
+  ///   inward. The page's margins are left untouched, so an inherited
+  ///   header/footer stays exactly where it sits on ordinary pages.
   assert(
     type(pages) == int and pages > 0,
-    message: "embedpaper: `pages` must be a positive integer (the page count of '" + fn + "').",
+    message: "embedpaper: `pages` must be a positive integer (the page count of '"
+      + fn
+      + "').",
   )
-  let key = _norm(fn)
-
-  // `page(..)[..]` isolates these settings to the embedded pages and reverts
-  // to the document's layout (e.g. two columns) afterwards.
-  page(
-    columns: 1,
-    margin: margin,
-    header: header,
-    footer: footer,
-  )[
-    #for i in range(1, pages + 1) {
-      // Native PDF page numbers are 1-indexed.
-      [#image(fn, page: i, width: width) <__paperimg>]
-
-      // Record where this page was placed so `embedpaper` can transform the
-      // source page's links into these coordinates.
-      context {
-        let el = query(selector(<__paperimg>).before(here())).last()
-        layout(size => {
-          let dim = measure(block(width: size.width, el))
-          let pos = el.location().position()
-          [#metadata((
-              filename: key,
-              src_page: i - 1, // 0-based, as pymupdf expects
-              page: pos.page - 1, // 0-based output page index
-              x: pos.x.pt(),
-              y: pos.y.pt(),
-              width: dim.width.pt(),
-              height: dim.height.pt(),
-            )) <__paperlink>]
-        })
-      }
-
-      if i < pages { pagebreak(weak: true) }
+  for i in range(1, pages + 1) {
+    context {
+      let nat = measure(image(fn, page: i))
+      let rel = width + 0% + 0pt
+      let avail-w = rel.ratio * page.width + rel.length
+      let scale = calc.min(avail-w / nat.width, page.height / nat.height)
+      // `place` keeps the paper out of the flow so it can bleed into the
+      // margins while the page's header/footer stay put.
+      place(center + horizon, [#image(
+        fn,
+        page: i,
+        width: nat.width * scale,
+      ) <__paperimg>])
     }
-  ]
+    // Record where this page was placed so the `embedpaper` CLI can transform
+    // the source page's links into these coordinates. `location().position()`
+    // reports the flow anchor (the body-region top-left); the paper is centered
+    // in the body region and bleeds past it, so shift by half the difference
+    // between the body region and the paper to reach its real top-left.
+    layout(size => context {
+      let el = query(selector(<__paperimg>).before(here())).last()
+      let dim = measure(el)
+      let pos = el.location().position()
+      [#metadata((
+        filename: fn,
+        src_page: i - 1, // 0-based, as pymupdf expects
+        page: pos.page - 1, // 0-based output page index
+        x: (pos.x + (size.width - dim.width) / 2).pt(),
+        y: (pos.y + (size.height - dim.height) / 2).pt(),
+        width: dim.width.pt(),
+        height: dim.height.pt(),
+      )) <__paperlink>]
+    })
+    if i < pages { pagebreak(weak: true) }
+  }
 }
